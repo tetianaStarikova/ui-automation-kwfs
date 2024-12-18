@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<suppressions>
+
+    <suppress checks="DeclarationOrder"
+              files="src/test/java/com.kwri.auto.utils.Retries.java"/>
+
+    <suppress checks="HideUtilityClassConstructor"
+              files="src/test/java/com.kwri.auto.utils.Retries.java"/>
+
+    <suppress checks="HideUtilityClassConstructor"
+              files="src/test/java/com/kwri/auto/utils/GmailApiClient.java"/>
+
+    <suppress checks="RegexpSingleline" files="passwords.properties"/>
+    <suppress checks="NewlineAtEndOfFile"
+              files="src/main/resources/passwords.properties"/>
+</suppressions>

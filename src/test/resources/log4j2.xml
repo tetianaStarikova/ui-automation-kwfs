@@ -1,0 +1,27 @@
+<Configuration status="INFO">
+    <Properties>
+        <Property name="appenderToUse">log_${sys:log:-console}</Property>
+    </Properties>
+    <Appenders>
+        <Console name="log_console">
+            <PatternLayout
+                    pattern="%highlight{%d{HH:mm:ss.SSS} %-5level %msg%n}{FATAL=red, ERROR=white, WARN=yellow, INFO=white, DEBUG=green, TRACE=blue}"/>
+        </Console>
+
+        <File name="log_file" fileName="target/logs/tests-${env:CIRCLE_BUILD_NUM}-${date:yyyy-MM-dd}.log"
+              immediateFlush="false" append="true">
+            <PatternLayout
+                    pattern="%d{yyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        </File>
+
+    </Appenders>
+    <Loggers>
+        <Root level="INFO" additivity="false">
+            <AppenderRef ref="${appenderToUse}"/>
+        </Root>
+        <Logger name="io.qameta.allure.AllureLifecycle" level="OFF"/>
+        <Logger name="com.kwri.auto.run.CucumberHooks">
+            <AppenderRef ref="log_console"/>
+        </Logger>
+    </Loggers>
+</Configuration>

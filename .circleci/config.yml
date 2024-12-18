@@ -1,0 +1,283 @@
+version: 2.1
+
+orbs:
+  ci: kwri/ci@1
+  slack: circleci/slack@4.10.1
+  automation: kwri/automation@0.2.1
+  browser-tools: circleci/browser-tools@1.4.0
+parameters:
+  ENVIRONMENT:
+    type: string
+    default: qa
+  TestTag:
+    type: string
+    default: '!ignore'
+  ExecutionType:
+    type: string
+    description: This parameter defines what type of workflow to run.
+    default: 'Regression'
+  #    Scheduled Execution
+  #    Deploy
+  #    Manual Execution (Env)
+  #    Regression
+
+executors:
+  default_executor:
+    docker:
+      - image: gcr.io/kw-image-repo/ci-base-gatling:17.0.3-browsers
+        auth:
+          username: $GCR_PULL_LOGIN
+          password: $GCR_PULL_SERVICE_KEY
+    resource_class: medium+
+
+    working_directory: ~/ui-automation-kwfs
+    environment:
+      BUCKET_PATH: gs://perf-test-result-modify-by-qa/Avengers/AllureHistory/ui/<< pipeline.parameters.ENVIRONMENT >>
+      REPORT_BUCKET_PATH: perf-test-result.cloud.kw.com/avengers-ui-results/AllureHistory/ams-bdd/<< pipeline.parameters.ENVIRONMENT >>
+      #Customize the JVM maximum heap limit
+      MAVEN_OPTS: -Xmx3200m
+
+commands:
+  # below are general commands used by executor & workflows
+  run_build_validation:
+    description: "Run Checkstyle check"
+    steps:
+      - checkout
+      - ci/vault-import-secrets
+      - ci/mvn-auth
+      - run: mvn -DskipTests clean dependency:resolve-plugins dependency:go-offline test-compile validate
+      - store-checkstyle-artifacts
+
+  run_on_demand:
+    description: "Run tests by tag"
+    steps:
+      - checkout-and-download-dependencies
+      - run:
+          name: Run tests
+          command: |
+            export uppercaseEnv=$(echo << pipeline.parameters.ENVIRONMENT >> | tr '[:lower:]' '[:upper:]')
+            mvn -Dusername=$username -Denvironment=<< pipeline.parameters.ENVIRONMENT >> clean verify -Dtest-tag='<< pipeline.parameters.TestTag >> & '"$uppercaseEnv"'' -Dlog=file 2> standard_error.txt 1> standard_out.txt
+          no_output_timeout: 210m
+      - store_artifacts:
+          path: standard_error.txt
+      - store_artifacts:
+          path: standard_out.txt
+      - send-xray-report-to-jira
+      - get-allure-history
+      - generate-allure-report
+      - store-allure-artifacts
+
+  run-regression-tests:
+    description: "Run Regression Tests"
+    parameters:
+      TestTag:
+        type: string
+        default: '!ignore'
+    steps:
+      - checkout-and-download-dependencies
+      - run:
+          name: Run tests
+          command: |
+            export uppercaseEnv=$(echo << pipeline.parameters.ENVIRONMENT >> | tr '[:lower:]' '[:upper:]')
+            mvn -Dusername=$username -Denvironment=<< pipeline.parameters.ENVIRONMENT >> clean verify -Dtest-tag='<< parameters.TestTag >> & '"$uppercaseEnv"'' -Dlog=file 2> standard_error.txt 1> standard_out.txt
+          no_output_timeout: 210m
+      - store_artifacts:
+          path: standard_error.txt
+      - store_artifacts:
+          path: standard_out.txt
+      - send-xray-report-to-jira
+      - get-allure-history
+      - generate-allure-report
+      - store-allure-artifacts
+
+  # below are "private" commands used as a part of general commands above only
+  generate-allure-report:
+    description: Generate test run allure report
+    steps:
+      - run:
+          name: Allure report generation
+          command: mvn io.qameta.allure:allure-maven:report
+          when: always
+
+      - run:
+          name: Send Allure reports to bucket
+          command: |
+            echo ${GCP_SA_BASE_64} | base64 -d > gcloud-service-account.json
+            gcloud auth activate-service-account --key-file=gcloud-service-account.json
+            gsutil -m cp -r target/site/allure-maven-plugin/* "gs://$REPORT_BUCKET_PATH/report/${CIRCLE_BUILD_NUM}/"
+            echo perf-test-result.cloud.kw.com/avengers-api-results/AllureHistory/ams-bdd/<< pipeline.parameters.ENVIRONMENT >>/report/${CIRCLE_BUILD_NUM}/index.html
+          when: always
+
+      - when:
+          condition:
+            and:
+              - not:
+                  equal: [ 'Deploy', << pipeline.parameters.ExecutionType >> ]
+              - equal: [ master, << pipeline.git.branch >> ]
+          steps:
+            - run:
+                name: Send Allure history reports to bucket
+                command: |
+                  gsutil -m cp target/site/allure-maven-plugin/history/* "$BUCKET_PATH/history/"
+                when: always
+
+      - store_artifacts:
+          path: target/site/allure-maven-plugin
+          destination: Allure
+
+  store-allure-artifacts:
+    description: Store Allure generated artifacts
+    steps:
+      - run:
+          name: Archive artifacts
+          when: always
+          command: tar -cvf artifacts-<< pipeline.parameters.ENVIRONMENT >>.tar target;
+      - store_artifacts:
+          path: artifacts-<< pipeline.parameters.ENVIRONMENT >>.tar
+
+      - when:
+          condition:
+            or:
+              - equal: [ qa, << pipeline.parameters.ENVIRONMENT >> ]
+              - equal: [ prod, << pipeline.parameters.ENVIRONMENT >> ]
+          steps:
+            - slack/notify:
+                event: always
+                custom: '{
+                  "blocks": [
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "AMS UI << pipeline.parameters.ExecutionType >> results in << pipeline.parameters.ENVIRONMENT >> env",
+                        "emoji": false
+                      }
+                    },
+                    {
+                      "type": "actions",
+                      "elements": [
+                        {
+                          "type": "button",
+                          "text": {
+                            "type": "plain_text",
+                            "text": "Go to Report #<< pipeline.number >>",
+                            "emoji": false
+                          },
+                          "value": "click_me_123",
+                          "url": "http://${REPORT_BUCKET_PATH}/report/${CIRCLE_BUILD_NUM}/index.html"
+                        }
+                      ]
+                    }
+                  ]
+                }'
+                channel: G01DVDESS2D
+
+  store-checkstyle-artifacts:
+    description: Store Checkstyle generated artifacts
+    steps:
+      - store_artifacts:
+          path: target/site
+          destination: Report/Checkstyle
+
+  send-xray-report-to-jira:
+    steps:
+      - automation/send-report-to-jira
+
+  get-allure-history:
+    steps:
+      - when:
+          condition:
+            and:
+              - not:
+                  equal: [ 'Deploy', << pipeline.parameters.ExecutionType >> ]
+              - equal: [ master, << pipeline.git.branch >> ]
+          steps:
+            - run:
+                name: Get Allure history reports from bucket
+                command: |
+                  echo ${GCP_SA_BASE_64} | base64 -d > gcloud-service-account.json
+                  gcloud auth activate-service-account --key-file=gcloud-service-account.json
+                  mkdir target/allure-results/history
+                  gsutil -m cp "$BUCKET_PATH/history/*" target/allure-results/history
+                when: always
+
+  checkout-and-download-dependencies:
+    description: Checkout code, download mvn dependencies and export passwords
+
+    steps:
+      - checkout
+      - browser-tools/install-chrome
+      - ci/vault-import-secrets:
+          secrets: |
+            cloudops/manual/circleci/shared/common
+            cloudops/manual/circleci/shared/portainer
+            testops/manual/kelle1_pass
+            testops/manual/kelle2_pass
+            testops/manual/kelle3_pass
+            testops/manual/default_pass
+            testops/manual/teams/teamBravo/kate_smith_pass
+            testops/manual/teams/teamBravo/qa_gmail_pass
+            testops/manual/teams/teamBravo/test_bravo_pass
+            testops/manual/teams/teamBravo/demo_tim
+            testops/manual/teams/avengers/avengers_users_pass
+            testops/manual/teams/avengers/post_people_api_key
+            testops/manual/teams/avengers/ams_api_key
+            testops/manual/teams/avengers/onboarding_api_key
+            testops/manual/teams/avengers/mls_api_key
+            testops/manual/automation_jira_data
+      - ci/mvn-auth
+      - run:
+          name: Fill password property file
+          command: |
+            envsubst < src/test/resources/passwords.properties.dist > src/test/resources/passwords.properties
+            echo "export JIRA_API_KEY=$automation_jira_api_key" >>$BASH_ENV
+            echo "export JIRA_CLIENT_ID=$automation_jira_client_id" >>$BASH_ENV
+
+jobs:
+  build_validation:
+    executor: default_executor
+    steps:
+      - run_build_validation
+  regression_tests:
+    executor: default_executor
+    steps:
+      - run-regression-tests
+  run_on_demand:
+    executor: default_executor
+    steps:
+      - run_on_demand
+
+workflows:
+  regression_tests:
+    when:
+      and:
+        - equal: [ 'Scheduled Execution', << pipeline.parameters.ExecutionType >> ]
+    jobs:
+      - build_validation:
+          context:
+            - vault-jwt-<< pipeline.parameters.ENVIRONMENT >>-testops
+      - regression_tests:
+          requires:
+            - build_validation
+          context:
+            - vault-jwt-<< pipeline.parameters.ENVIRONMENT >>-testops
+          filters:
+            branches:
+              only:
+                - master
+                - /^fix\/\S*$/
+                - /^feature\/\S*$/
+
+  on_demand:
+    when:
+      and:
+        - equal: [ 'Manual Execution', << pipeline.parameters.ExecutionType >> ]
+        - equal: [ api, << pipeline.trigger_source >> ]
+    jobs:
+      - build_approval:
+          type: approval
+      - run_on_demand:
+          requires:
+            - build_approval
+          context:
+            - vault-jwt-<< pipeline.parameters.ENVIRONMENT >>-testops
