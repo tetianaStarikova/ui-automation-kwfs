@@ -82,10 +82,10 @@ public enum User {
     AVENGERS_MC_ANGEL("AvengersMCAngel", "AvengersUsers"),                                        //role_id = 31
     AVENGERS_MAPS_LEADERSHIP_COACH("AvengersMAPSLeadershipCoach", "AvengersUsers"),               //role_id = 32
     AVENGERSREGTECHTRAINER("AvengersRegTechTrainer", "AvengersUsers"),                        //role_id = 86
-    TEAMSBRAVOMCA("AutomationTeamsBravoMCA", "TestBravo"),                                    //role_id = 3
-    TEAMSBRAVOOP("AutomationTeamsBravoOperationPrincipal", "TestBravo"),                      //role_id = 7
-    TEAMSBRAVOTEAMLEADER("AutomationTeamsBravoTeamLeader", "TestBravo"),                      //role_id = 8
-    TEAMSBRAVOAMCA("AutomationTeamsBravoAMCA", "TestBravo"),                                 //role_id = 14
+    TEAMSBRAVOMCA("MCATeamsBravo", "TestBravo"),                                    //role_id = 3
+    TEAMSBRAVOOP("OperationPrincipalTeamsBravo", "TestBravo"),                      //role_id = 7
+    TEAMSBRAVOTEAMLEADER("TeamLeaderTeamsBravo", "TestBravo"),                      //role_id = 8
+    TEAMSBRAVOAMCA("AMCATeamsBravo", "TestBravo"),                                 //role_id = 14
     TEAMSBRAVOEXECUTIVE("TeamsBravoExecutive", "KateSmith"),                                  //role_id = 16
     TEAMSBRAVOHRASSISTANT("TeamsBravoHRAssistant", "KateSmith"),                              //role_id = 24
     TEAMSBRAVOMCANGEL("TeamsBravoMCAngel", "KateSmith"),                                      //role_id = 31
@@ -96,8 +96,8 @@ public enum User {
     PSADMINISTRATOR("PSAdministrator", "DefaultRain"),                                        //role_id = 96
     TEAMSBRAVOKWUADMINISTRATOR("TeamsBravoKWUAdministrator", "KateSmith"),                    //role_id = 17
     AVENGERSSYSTEMADMIN("AvengersSystemAdmin", "AvengersUsers"),                              //role_id = 1
-    TEAMSBRAVOSYSTEMADMIN("AutomationTeamsBravoSysAdmin", "TestBravo"),                      //role_id = 1
-    TEAMSBRAVOLEGAL("AutomationTeamsBravoLegal", "TestBravo"),                               //role_id = 21
+    TEAMSBRAVOSYSTEMADMIN("SysAdminTeamsBravo", "TestBravo"),                      //role_id = 1
+    TEAMSBRAVOLEGAL("LegalTeamsBravo", "TestBravo"),                               //role_id = 21
     TEAMSBRAVONAMCA("TeamsBravoNAMCA", "KateSmith"),                                         //role_id = 3, orgId=21
     TEAMSBRAVOWWREGIONWWMARKETCENTER("TeamsBravoRegWWRegionWWMnew", "KateSmith"),
     AVENGERS_USER_WHO_CAN_SHARE_ROYALTY("AvengersUserWhoCanShareRoyalty", "AvengersUsers");
